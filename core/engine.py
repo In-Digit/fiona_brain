@@ -83,8 +83,18 @@ class DataEngine:
                     if selected_pid == "0110":
                         self.state.mafValue = value
                         self.state.mafDirty = True
-                        # Пересчет LPH (базовый, без коррекций)
-                        self.state.lphValue = value * 0.32653
+
+                        # --- ВНЕДРЕНИЕ КОРРЕКЦИЙ STFT/LTFT ---
+                        # Базовый расчет (без учета коррекций)
+                        base_lph = value * 0.32653
+
+                        # Суммарная коррекция в процентах (например, 10.5%)
+                        # STFT и LTFT в state уже хранятся как проценты (например, 5.0 или -2.5)
+                        trim_percent = self.state.stft + self.state.ltft
+                        trim_factor = 1.0 + (trim_percent / 100.0)
+
+                        # Итоговый расход в литрах в час
+                        self.state.lphValue = base_lph * trim_factor
                         self.state.lphDirty = True
 
                     elif selected_pid == "010D":
