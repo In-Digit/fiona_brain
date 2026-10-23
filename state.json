@@ -1,0 +1,16 @@
+{
+  "fuelValue": 46.337552445332214,
+  "odoKm": 200000,
+  "fuelCalibrationFactor": 1.0,
+  "lastFullOdoKm": 0,
+  "totalRefuelSinceLastFull": 0.0,
+  "calculatedFuelSinceLastFull": 3.6624475546667328,
+  "hasFirstFullTank": false,
+  "calibrationNeeded": false,
+  "fuel_calib_flags": 1,
+  "dayOdometerMeters": 0,
+  "dayFuelUsed": 0.0,
+  "dayMaxSpeed": 0,
+  "dayDriveSeconds": 0,
+  "lastAvgL100km": 0.0
+}

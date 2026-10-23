@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fiona Brain Dashboard</title>
+    <style>
+        body { background-color: #121212; color: #fff; font-family: sans-serif; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 600px; }
+        .card { background-color: #1e1e1e; border-radius: 12px; padding: 15px; text-align: center; border: 1px solid #333; }
+        .value { font-size: 2.5rem; font-weight: bold; color: #00f3ff; margin: 10px 0; }
+        .label { font-size: 0.9rem; color: #aaa; text-transform: uppercase; }
+        .warning { color: #ff3333 !important; }
+        .good { color: #00ff00 !important; }
+        .controls { width: 100%; max-width: 600px; margin-top: 30px; display: flex; flex-direction: column; gap: 15px; }
+        .control-group { background-color: #1e1e1e; border-radius: 12px; padding: 15px; border: 1px solid #333; }
+        input[type="number"], input[type="text"] { background-color: #333; border: 1px solid #555; color: #fff; padding: 8px; border-radius: 5px; width: calc(50% - 10px); margin-bottom: 10px; }
+        button { background-color: #00f3ff; color: #000; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer; margin-top: 5px;}
+        .btn-danger { background-color: #ff3333; color: #fff; }
+        .status-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; margin-bottom: 10px; font-weight: bold;}
+        .bg-warn { background-color: #ff7800; color: #000; }
+        .bg-ok { background-color: #00ff00; color: #000; }
+        .bg-info { background-color: #00f3ff; color: #000; }
+        #message { margin-top: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Fiona Brain</h1>
+
+    <!-- Индикаторы -->
+    <div style="width: 100%; max-width: 600px; text-align: center; margin-bottom: 10px;">
+        <div id="emu-badge" class="status-badge bg-warn" style="display:none;">РЕЖИМ ЭМУЛЯЦИИ</div>
+        <div id="calib-active-badge" class="status-badge bg-info" style="display:none;">ИДЕТ КАЛИБРОВКА (<span id="calib-alias"></span>)</div>
+        <div id="calib-frozen-badge" class="status-badge bg-ok">КАЛИБРОВКА ЗАМОРОЖЕНА</div>
+        <div id="calib-needed-badge" class="status-badge bg-warn" style="display:none;">ТРЕБУЕТСЯ КАЛИБРОВКА! (Одометр/Топливо)</div>
+    </div>
+
+    <div class="grid">
+        <div class="card"><div class="label">Скорость</div><div class="value" id="speed">0</div><div class="label">км/ч</div></div>
+        <div class="card"><div class="label">Обороты</div><div class="value" id="rpm">0</div><div class="label">об/мин</div></div>
+        <div class="card"><div class="label">Топливо</div><div class="value" id="fuel">0</div><div class="label">литров</div></div>
+        <div class="card"><div class="label">Запас хода</div><div class="value" id="range">0</div><div class="label">км</div></div>
+        <div class="card"><div class="label">Температура ОЖ</div><div class="value" id="coolant">0</div><div class="label">°C</div></div>
+        <div class="card"><div class="label">Коэффициент</div><div class="value" id="k_calib" style="font-size: 1.8rem;">1.000</div><div class="label">Калибровка</div></div>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <h3>Заправка</h3>
+            <input type="text" id="refuel-alias" placeholder="Алиас (Газпром_Мира)" style="width: 100%;">
+            <input type="number" id="refuel-liters" placeholder="Литры">
+            <input type="number" id="refuel-price" placeholder="Цена (руб)">
+            <input type="number" id="refuel-odo" placeholder="Одометр (миль)">
+            <div><label><input type="checkbox" id="refuel-full"> Полный бак</label></div>
+            <button onclick="doRefuel()">Заправить</button>
+        </div>
+
+        <div class="control-group">
+            <h3>Управление калибровкой</h3>
+            <button class="btn-danger" onclick="postAction('/api/calib_control', {action: 'cancel'})">Отменить калибровку</button>
+            <button onclick="postAction('/api/calib_control', {action: 'toggle_freeze'})">Переключить заморозку</button>
+        </div>
+
+        <div id="message"></div>
+    </div>
+
+    <script>
+        async function updateData() {
+            try {
+                const response = await fetch('/api/telemetry');
+                const data = await response.json();
+
+                document.getElementById('speed').innerText = data.speed;
+                document.getElementById('rpm').innerText = data.rpm;
+                document.getElementById('fuel').innerText = data.fuel_liters;
+                document.getElementById('range').innerText = data.range_km;
+                document.getElementById('coolant').innerText = data.coolant;
+                document.getElementById('k_calib').innerText = data.calib_factor;
+
+                // Управление бейджами
+                if(data.is_emu) document.getElementById('emu-badge').style.display = 'inline-block';
+
+                if(data.calib_active) {
+                    document.getElementById('calib-active-badge').style.display = 'inline-block';
+                    document.getElementById('calib-alias').innerText = data.calib_preset;
+                } else {
+                    document.getElementById('calib-active-badge').style.display = 'none';
+                }
+
+                if(data.odo_needed || data.fuel_needed) {
+                    document.getElementById('calib-needed-badge').style.display = 'inline-block';
+                    document.getElementById('calib-needed-badge').innerText = `ТРЕБУЕТСЯ КАЛИБРОВКА (${data.odo_needed?'Одо':''}${data.fuel_needed?'Топл':''})`;
+                } else {
+                    document.getElementById('calib-needed-badge').style.display = 'none';
+                }
+
+                document.getElementById('calib-frozen-badge').innerText = data.calib_frozen ? "КАЛИБРОВКА ЗАМОРОЖЕНА" : "КАЛИБРОВКА РАЗМОРОЖЕНА";
+
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function postAction(url, payload) {
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                showMessage(result.message);
+            } catch (e) {
+                showMessage('Ошибка сети', false);
+            }
+        }
+
+        function doRefuel() {
+            const liters = parseFloat(document.getElementById('refuel-liters').value);
+            const price = parseFloat(document.getElementById('refuel-price').value) || 0;
+            const isFull = document.getElementById('refuel-full').checked;
+            const alias = document.getElementById('refuel-alias').value || "default";
+            const odo = parseInt(document.getElementById('refuel-odo').value) || 0;
+
+            if (liters > 0) {
+                postAction('/api/refuel', {liters, price, is_full: isFull, alias, odo});
+            } else {
+                showMessage('Введите литры');
+            }
+        }
+
+        function showMessage(msg) {
+            const el = document.getElementById('message');
+            el.innerText = msg;
+            setTimeout(() => { el.innerText = ''; }, 4000);
+        }
+
+        setInterval(updateData, 500);
+        updateData();
+    </script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+pyserial>=3.5
+python-socketio>=5.10.0
+websocket-client>=1.6.0
+requests>=2.31.0

@@ -1,0 +1,1 @@
+/home/mrak/fb.sh
